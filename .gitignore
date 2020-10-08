@@ -1,0 +1,6 @@
+fastq/
+fastqc/
+reference/
+cut/
+bam/
+genes/

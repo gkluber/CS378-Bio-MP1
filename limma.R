@@ -11,6 +11,7 @@
 library(edgeR)
 library(readr)
 library(data.table)
+library(tidyr)
 
 patients <- read.csv(file = 'SRARunTable.csv')
 #head(patients)
@@ -51,3 +52,35 @@ genes <- transpose(genecounts)
 rownames(genes) = colnames(genecounts)
 colnames(genes) = rownames(genecounts)
 head(genes)
+
+# LIMMA
+d0 <- DGEList(data.matrix(genes))
+d0 <- calcNormFactors(d0)
+
+# Filter out low-expressed genes
+cutoff <- 1
+drop <- which(apply(cpm(d0), 1, max) < cutoff)
+d <- d0[-drop,]
+
+# Define groups
+group <- factor(paste(patients$disease_status, patients$disease_severity, sep="."),
+                levels=c("Healthy.NA", "COVID19.Moderate", "COVID19.Severe"))
+plotMDS(d, col = as.numeric(group))
+
+# Voom
+mm <- model.matrix(~0 + group)
+y <- voom(d, mm, plot = T)
+
+# Actual LIMMA now with empirical Bayes
+fit <- lmFit(y, mm)
+head(coef(fit))
+contr <- makeContrasts(groupHealthy.NA - groupCOVID19.Severe, levels = colnames(coef(fit)))
+tmp <- contrasts.fit(fit, contr)
+tmp <- eBayes(tmp)
+
+# Get most differentially expressed genes
+top.table <- topTable(tmp, sort.by = "P", n = Inf)
+head(top.table, 20)
+
+# Get number of DE genes
+length(which(top.table$adj.P.Val < 0.05))

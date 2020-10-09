@@ -53,7 +53,7 @@ rownames(genes) = colnames(genecounts)
 colnames(genes) = rownames(genecounts)
 head(genes)
 
-# LIMMA
+# Preprocessing for LIMMA
 d0 <- DGEList(data.matrix(genes))
 d0 <- calcNormFactors(d0)
 
@@ -80,7 +80,12 @@ tmp <- eBayes(tmp)
 
 # Get most differentially expressed genes
 top.table <- topTable(tmp, sort.by = "P", n = Inf)
-head(top.table, 20)
 
-# Get number of DE genes
-length(which(top.table$adj.P.Val < 0.05))
+# Get number of DE genes and output them
+#numDE <- length(which(top.table$adj.P.Val < 0.01))
+de <- top.table[which(top.table$adj.P.Val < 0.05), ]
+
+rownames(de)
+
+# Run MDS using the DE genes
+plotMDS(d0[rownames(de),], col = as.numeric(group))

@@ -10,21 +10,21 @@
 
 library(edgeR)
 library(readr)
-library(data.table)
 library(tidyr)
 
-patients <- read.csv(file = 'SRARunTable.csv')
-#head(patients)
+patients <- read.table(file = 'SraRunTable.csv', sep=',', header = TRUE)
 
-genecounts <- NULL
+#print(head(patients))
+
+genes <- NULL
 for (run in patients[,1])
 {
-  #writeLines(paste(run, "\n"))
+  writeLines(paste(run, "\n"))
   filename <- paste0("count/", run, ".tsv")
   print(filename)
-  #count <- read.table(file = filename, sep = '\t', header = TRUE)
-  count <- read_tsv(filename, col_names = FALSE)
-  print(head(count))
+  count <- read.table(file = filename, sep = '\t', row.names = 1, header = TRUE)
+  #count <- read.tsv(filename, col_names = FALSE)
+  #print(head(count))
   #args <- vector(mode="list", length = nrow(count))
   #targs <- list()
   #for (row in seq_len(nrow(count)))
@@ -32,26 +32,24 @@ for (run in patients[,1])
   #  targs[[count[row, 1]]] <- count[row, 2]
   #}
   #tpose <- do.call(data.frame, targs)
-  tpose <- transpose(count)
+  #print(paste("dimensions = (", paste(dim(tpose), collapse = ","), ")"))
   #print(tpose[1:20])
-  colnames(tpose) <- tpose[1,]
-  tpose <- tpose[2,]
-  rownames(tpose) <- as.list(run)
-  print(tpose[1:20])
-  if (is.null(genecounts))
+
+  colnames(count) <- as.list(run)
+  
+  #print(tpose[1:20])
+  
+  
+  if (is.null(genes))
   {
-    genecounts <<- tpose
+    genes <<- count
   }
   else
   {
-    genecounts <<- rbind(genecounts, tpose)
+    genes <<- cbind(genes, count)
   }
 }
-
-genes <- transpose(genecounts)
-rownames(genes) = colnames(genecounts)
-colnames(genes) = rownames(genecounts)
-head(genes)
+print(head(genes))
 
 # Preprocessing for LIMMA
 d0 <- DGEList(data.matrix(genes))
@@ -63,29 +61,35 @@ drop <- which(apply(cpm(d0), 1, max) < cutoff)
 d <- d0[-drop,]
 
 # Define groups
-group <- factor(paste(patients$disease_status, patients$disease_severity, sep="."),
-                levels=c("Healthy.NA", "COVID19.Moderate", "COVID19.Severe"))
+group <- factor(patients$TREATMENT)
+png(file="mds.png")
 plotMDS(d, col = as.numeric(group))
+dev.off()
 
 # Voom
 mm <- model.matrix(~0 + group)
+png(file="voom.png")
 y <- voom(d, mm, plot = T)
+dev.off()
 
 # Actual LIMMA now with empirical Bayes
 fit <- lmFit(y, mm)
-head(coef(fit))
-contr <- makeContrasts(groupHealthy.NA - groupCOVID19.Severe, levels = colnames(coef(fit)))
+print(head(coef(fit)))
+contr <- makeContrasts(groupMock.72.hpi - groupSARS.CoV.2.72.hpi, levels = colnames(coef(fit)))
 tmp <- contrasts.fit(fit, contr)
 tmp <- eBayes(tmp)
 
 # Get most differentially expressed genes
 top.table <- topTable(tmp, sort.by = "P", n = Inf)
+write.csv(top.table, "total_diff.csv")
 
 # Get number of DE genes and output them
 #numDE <- length(which(top.table$adj.P.Val < 0.01))
-de <- top.table[which(top.table$adj.P.Val < 0.05), ]
-
-rownames(de)
+de <- top.table[which(top.table$adj.P.Val < 0.001), ]
+de <- top.table[which(abs(top.table$logFC) >= 2), ]
+write.csv(de, "filtered_diff.csv")
 
 # Run MDS using the DE genes
+png(file="mds_diff.png")
 plotMDS(d0[rownames(de),], col = as.numeric(group))
+dev.off()

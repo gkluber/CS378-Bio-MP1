@@ -5,7 +5,7 @@ REFERENCE_DIR = reference
 REFERENCE_PREFIX = genome
 BAM_DIR = bam
 COUNT_DIR = count
-GENES = genes/genes.gtf
+GENES = gtf/genes.gtf
 
 ACCESSIONS = $(shell cat accessions.list)
 FASTQ = $(addprefix $(FASTQ_DIR)/, $(addsuffix .fastq.gz, $(ACCESSIONS)))
@@ -15,11 +15,12 @@ BAM = $(addprefix $(BAM_DIR)/, $(addsuffix .bam, $(ACCESSIONS)))
 INDEX = $(addprefix $(BAM_DIR)/, $(addsuffix .bam.bai, $(ACCESSIONS)))
 COUNT = $(addprefix $(COUNT_DIR)/, $(addsuffix .tsv, $(ACCESSIONS)))
 
-N_THREADS = 12
+N_THREADS = 12 
 
 download: $(FASTQ)
 fastqc: $(FASTQC)
 align: $(BAM)
+index: $(INDEX)
 count: $(COUNT)
 
 $(FASTQ): $(FASTQ_DIR)/%.fastq.gz:
@@ -39,9 +40,9 @@ $(FASTQC): $(FASTQC_DIR)/%_fastqc.html: $(CUT_DIR)/%.fastq.gz
 %.fastq_view:
 	gzip --stdout -d $*.fastq.gz
 
-$(BAM): $(BAM_DIR)/%.bam: $(CUT_DIR)/%.fastq.gz
+$(BAM): $(BAM_DIR)/%.bam: $(FASTQ_DIR)/%.fastq.gz
 	@mkdir -p $(BAM_DIR)
-	bowtie2 --local --very-sensitive-local -p $(N_THREADS) -x $(REFERENCE_DIR)/$(REFERENCE_PREFIX) $(word 2,$^) > $@
+	hisat2 -p $(N_THREADS) -x $(REFERENCE_DIR)/$(REFERENCE_PREFIX) -U $^ > $@
 
 $(INDEX): $(BAM_DIR)/%.bam.bai: $(BAM_DIR)/%.bam
 	samtools sort $< -o $<

@@ -13,8 +13,7 @@ library(readr)
 library(tidyr)
 
 patients <- read.table(file = 'SraRunTable.csv', sep=',', header = TRUE)
-
-#print(head(patients))
+print(nrow(patients))
 
 genes <- NULL
 for (run in patients[,1])
@@ -23,22 +22,8 @@ for (run in patients[,1])
   filename <- paste0("count/", run, ".tsv")
   print(filename)
   count <- read.table(file = filename, sep = '\t', row.names = 1, header = TRUE)
-  #count <- read.tsv(filename, col_names = FALSE)
-  #print(head(count))
-  #args <- vector(mode="list", length = nrow(count))
-  #targs <- list()
-  #for (row in seq_len(nrow(count)))
-  #{
-  #  targs[[count[row, 1]]] <- count[row, 2]
-  #}
-  #tpose <- do.call(data.frame, targs)
-  #print(paste("dimensions = (", paste(dim(tpose), collapse = ","), ")"))
-  #print(tpose[1:20])
 
   colnames(count) <- as.list(run)
-  
-  #print(tpose[1:20])
-  
   
   if (is.null(genes))
   {
@@ -49,7 +34,7 @@ for (run in patients[,1])
     genes <<- cbind(genes, count)
   }
 }
-print(head(genes))
+#print(head(genes))
 
 # Preprocessing for LIMMA
 d0 <- DGEList(data.matrix(genes))
@@ -59,6 +44,12 @@ d0 <- calcNormFactors(d0)
 cutoff <- 1
 drop <- which(apply(cpm(d0), 1, max) < cutoff)
 d <- d0[-drop,]
+
+p <- colnames(d$counts)
+print(p)
+t <- d$counts
+#colnames(t) <- p
+write.table(t, "combined_counts.tsv", sep="\t");
 
 # Define groups
 group <- factor(patients$TREATMENT)
